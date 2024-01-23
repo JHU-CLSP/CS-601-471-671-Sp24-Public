@@ -21,6 +21,7 @@ conda create -n ssw_hw1 python=3.10.13
 And install the required packages:
 ```
 conda activate ssw_hw1
+cd hw1
 pip install -r requirements.txt
 ```
 
