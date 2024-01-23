@@ -124,6 +124,7 @@ class SentimentClassifier(nn.Module):
         # TODO: complete the forward function
         # Hint: follow the hints in the pdf description
         raise NotImplementedError
+        # your code ends here
 
         return logits
 
