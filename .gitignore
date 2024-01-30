@@ -1,0 +1,8 @@
+.vscode/settings.json
+.DS_Store
+hw1/.ipynb_checkpoints/created_notebook-checkpoint.ipynb
+hw1/.ipynb_checkpoints/model-checkpoint.py
+hw1/.ipynb_checkpoints/test-checkpoint.py
+hw1/.ipynb_checkpoints/Untitled-checkpoint.ipynb
+hw1/__pycache__/basics.cpython-310.pyc
+hw1/__pycache__/model.cpython-310.pyc
