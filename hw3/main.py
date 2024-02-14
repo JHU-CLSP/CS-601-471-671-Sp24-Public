@@ -70,18 +70,33 @@ def explore_mlp_activations(dev_d: Dict[str, List[Union[str, int]]],
     num_classes = 2
     hidden_dims = [512]
 
-    # TODO: explore different activation functions
-    # Define train_config according to fixed hyper-parameters + activation choices, train and evaluate the model
-    # plot the dev set accuracies and losses across different activation functions in two separate plots
+    activation_functions = ['Sigmoid', 'Tanh', 'ReLU', 'GeLU']
+    activation_names = activation_functions  # for visualization
 
-    # activation functions to explore:
-    # feel free to include other activations to the list
-    activations = ['Sigmoid', 'Tanh', 'ReLU', 'GeLU']
-    activation_names = activations  # for visualization
+    for activation_func, activation_name in zip(activation_functions, activation_names):
+        train_config = EasyDict({
+            'batch_size': batch_size,
+            'lr': lr,
+            'num_epochs': num_epochs,
+            'hidden_dims': hidden_dims,
+            'save_path': f'model_activation_{activation_name}.pth',
+            'embeddings': embedding_type,
+            'num_classes': num_classes,
+            'activation': activation_func,
+        })
 
-    # iterate over activations to define train config, run the training and generate the plots
-    raise NotImplementedError
-    # your code ends here
+        epoch_train_losses, _, epoch_dev_loss, epoch_dev_accs, _, _ = run_mlp(train_config, embeddings, dev_dataset,
+                                                                              train_dataset,
+                                                                              test_dataset)
+        all_emb_epoch_dev_accs.append(epoch_dev_accs)
+        all_emb_epoch_dev_losses.append(epoch_dev_loss)
+        visualize_epochs(epoch_train_losses, epoch_dev_loss, f"mlp_activation_{activation_name}_loss.png")
+
+    visualize_configs(all_emb_epoch_dev_accs, activation_names, "Accuracy", "./all_mlp_activations_acc.png")
+    visualize_configs(all_emb_epoch_dev_losses, activation_names, "Loss", "./all_mlp_activations_loss.png")
+
+
+
 
 
 def explore_mlp_learning_rates(dev_d: Dict[str, List[Union[str, int]]],
@@ -109,32 +124,69 @@ def explore_mlp_learning_rates(dev_d: Dict[str, List[Union[str, int]]],
 
     # learning rates to explore:
     # we provide the base learning rate as a start, explore more learning rate values!
-    lrs = [0.02]
+    lrs = [0.02, 0.05, 0.01, 0.03, 0.1]
+
     lrs_names = [str(lr) for lr in lrs] # for visualization
 
-    # iterate over learning rates to define train config, run the training and generate the plots
-    raise NotImplementedError
-    # your code ends here
+    all_emb_epoch_dev_accs, all_emb_epoch_dev_losses = [], []
+
+    print(f"{'-' * 10} Create Datasets {'-' * 10}")
+    train_dataset = create_tensor_dataset(train_d, embeddings)
+    dev_dataset = create_tensor_dataset(dev_d, embeddings)
+    test_dataset = create_tensor_dataset(test_d, embeddings)
+
+    # fixed hyperparameters
+    batch_size = 64
+    num_epochs = 20
+    embedding_type = EMBEDDING_TYPE
+    num_classes = 2
+    hidden_dims = [512]
+    activation = 'Sigmoid'
+
+    for lr, lr_name in zip(lrs, lrs_names):
+        train_config = EasyDict({
+            'batch_size': batch_size,
+            'lr': lr,
+            'num_epochs': num_epochs,
+            'hidden_dims': hidden_dims,
+            'save_path': f'model_lr_{lr_name}.pth',
+            'embeddings': embedding_type,
+            'num_classes': num_classes,
+            'activation': activation,
+        })
+
+        epoch_train_losses, _, epoch_dev_loss, epoch_dev_accs, _, _ = run_mlp(train_config, embeddings, dev_dataset,
+                                                                              train_dataset,
+                                                                              test_dataset)
+        all_emb_epoch_dev_accs.append(epoch_dev_accs)
+        all_emb_epoch_dev_losses.append(epoch_dev_loss)
+        visualize_epochs(epoch_train_losses, epoch_dev_loss, f"mlp_lr_{lr_name}_loss.png")
+
+    visualize_configs(all_emb_epoch_dev_accs, lrs_names, "Accuracy", "./all_mlp_learning_rates_acc.png")
+    visualize_configs(all_emb_epoch_dev_losses, lrs_names, "Loss", "./all_mlp_learning_rates_loss.png")
+    lrs_names = [str(lr) for lr in lrs] # for visualization
+
+    
 
 
 if __name__ == '__main__':
     # Load raw data for mlp
     # uncomment the following line to run
-    # dev_data, train_data, test_data = load_data_mlp()
+    dev_data, train_data, test_data = load_data_mlp()
 
     # load pre-trained embeddings
     # uncomment the following lines to run
-    # print(f"{'-' * 10} Load Pre-trained Embeddings: {EMBEDDING_TYPE} {'-' * 10}")
-    # pretrained_embeddings = gensim.downloader.load(EMBEDDING_TYPE)
+    print(f"{'-' * 10} Load Pre-trained Embeddings: {EMBEDDING_TYPE} {'-' * 10}")
+    pretrained_embeddings = gensim.downloader.load(EMBEDDING_TYPE)
 
     # Explore different hidden dimensions
     # uncomment the following line to run
-    # explore_mlp_structures(dev_data, train_data, test_data, pretrained_embeddings)
+    explore_mlp_structures(dev_data, train_data, test_data, pretrained_embeddings)
 
     # Explore different activations
     # uncomment the following line to run
-    # explore_mlp_activations(dev_data, train_data, test_data, pretrained_embeddings)
+    explore_mlp_activations(dev_data, train_data, test_data, pretrained_embeddings)
 
     # Explore different learning rates
     # uncomment the following line to run
-    # explore_mlp_learning_rates(dev_data, train_data, test_data, pretrained_embeddings)
+    explore_mlp_learning_rates(dev_data, train_data, test_data, pretrained_embeddings)

@@ -16,17 +16,20 @@ from typing import List, Tuple, Dict, Union
 random.seed(42)
 torch.manual_seed(42)
 
-nltk.download('punkt')
+nltk.download("punkt")
 
 
 def load_data_mlp() -> Tuple[
-    Dict[str, List[Union[int, str]]], Dict[str, List[Union[int, str]]], Dict[str, List[Union[int, str]]]]:
+    Dict[str, List[Union[int, str]]],
+    Dict[str, List[Union[int, str]]],
+    Dict[str, List[Union[int, str]]],
+]:
     # download dataset
     print(f"{'-' * 10} Load Dataset {'-' * 10}")
     dataset = load_dataset("imdb")
     dataset = dataset.shuffle()  # shuffle the data
-    train_dataset = dataset['train']
-    test_dataset = dataset['test']
+    train_dataset = dataset["train"]
+    test_dataset = dataset["test"]
 
     print(f"{'-' * 10} an example from the train set {'-' * 10}")
     print(train_dataset[0])
@@ -42,7 +45,10 @@ def load_data_mlp() -> Tuple[
 
     return dev_dataset, train_dataset, test_dataset
 
-def featurize(sentence: str, embeddings: gensim.models.keyedvectors.KeyedVectors) -> Union[None, torch.FloatTensor]:
+
+def featurize(
+    sentence: str, embeddings: gensim.models.keyedvectors.KeyedVectors
+) -> Union[None, torch.FloatTensor]:
     # sequence of word embeddings
     vectors = []
 
@@ -53,23 +59,23 @@ def featurize(sentence: str, embeddings: gensim.models.keyedvectors.KeyedVectors
         except KeyError:
             pass
 
-    # TODO (Copy from your HW1): complete the function to compute the average embedding of the sentence
-    # your return should be
-    # None - if the vector sequence is empty, i.e. the sentence is empty or None of the words in the sentence is in the embedding vocabulary
-    # A torch tensor of shape (embed_dim,) - the average word embedding of the sentence
-    # Hint: follow the hints in the pdf description
-    raise NotImplementedError
+    if len(vectors) == 0:
+        return None
+    else:
+        avg_vector = np.mean(vectors, axis=0)
+        return torch.FloatTensor(avg_vector)
 
 
-def create_tensor_dataset(raw_data: Dict[str, List[Union[int, str]]],
-                          embeddings: gensim.models.keyedvectors.KeyedVectors) -> TensorDataset:
+def create_tensor_dataset(
+    raw_data: Dict[str, List[Union[int, str]]],
+    embeddings: gensim.models.keyedvectors.KeyedVectors,
+) -> TensorDataset:
     all_features, all_labels = [], []
-    for text, label in tqdm(zip(raw_data['text'], raw_data['label'])):
-
-        # TODO (Copy from your HW1): complete the for loop to featurize each sentence
-        # only add the feature and label to the list if the feature is not None
-        raise NotImplementedError
-        # your code ends here
+    for text, label in tqdm(zip(raw_data["text"], raw_data["label"])):
+        feature = featurize(text, embeddings)
+        if feature is not None:
+            all_features.append(feature)
+            all_labels.append(label)
 
     # stack all features and labels into two single tensors and create a TensorDataset
     features_tensor = torch.stack(all_features)
@@ -77,59 +83,74 @@ def create_tensor_dataset(raw_data: Dict[str, List[Union[int, str]]],
 
     return TensorDataset(features_tensor, labels_tensor)
 
-def create_dataloader(dataset: TensorDataset, batch_size: int, shuffle: bool = True) -> DataLoader:
+
+def create_dataloader(
+    dataset: TensorDataset, batch_size: int, shuffle: bool = True
+) -> DataLoader:
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
 class SentimentClassifier(nn.Module):
-    def __init__(self, embed_dim: int, num_classes: int, hidden_dims: List[int], activation: str = 'Sigmoid'):
+    def __init__(
+        self,
+        embed_dim: int,
+        num_classes: int,
+        hidden_dims: List[int],
+        activation: str = "Sigmoid",
+    ):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_classes = num_classes
 
-        # TODO: define the activation functions
-        # activation function
-        if activation == 'Sigmoid':
+        # Define the activation functions
+        if activation == "Sigmoid":
             self.activation = nn.Sigmoid()
+        elif activation == "Tanh":
+            self.activation = nn.Tanh()
+        elif activation == "ReLU":
+            self.activation = nn.ReLU()
+        elif activation == "GeLU":
+            self.activation = nn.GELU()
         else:
-            raise NotImplementedError
+            raise ValueError(f"Unsupported activation function: {activation}")
 
-        # linear layers for the MLP
+        # Initialize linear layers
         self.linears = nn.ModuleList()
-        # TODO: define the MLP given the hidden dimensions
-        # - embed_dim is the dimension of the word embeddings (input to the MLP)
-        # - num_classes is the number of classes (output of the MLP)
-        # - hidden_dims is a list of integers, where each integer is the dimension of a hidden layer in the MLP
-        # - The linear layers should have the following dimensions:
-        #       [embed_dim, hidden_dims[0]], [hidden_dims[0], hidden_dims[1]], ..., [hidden_dims[-1], num_classes]
-        # Hint:
-        # - Remember to consider the case when there are no hidden layers (i.e. hidden_dims is an empty list)
-        #       in this case, it essentially degrades to the architecture we used in hw 1
-        raise NotImplementedError
-        # your code ends here
 
-        self.loss = nn.CrossEntropyLoss(reduction='mean')
+        # Check if hidden_dims is empty
+        if not hidden_dims:
+            # Directly connect embed_dim to num_classes if no hidden layers are defined
+            self.linears.append(nn.Linear(embed_dim, num_classes))
+        else:
+            # Create hidden layers based on hidden_dims
+            prev_dim = embed_dim
+            for hidden_dim in hidden_dims:
+                self.linears.append(nn.Linear(prev_dim, hidden_dim))
+                prev_dim = hidden_dim
+            # Add the final layer
+            self.linears.append(nn.Linear(hidden_dims[-1], num_classes))
+
+        self.loss = nn.CrossEntropyLoss(reduction="mean")
 
     def forward(self, inp):
-
-        # TODO: complete the forward function
-        # Hint remember to apply the activation function to all hidden layers except the last one
-        raise NotImplementedError
-        # your code ends here
-
+        # Apply activation function to each layer except the last
+        for linear in self.linears[:-1]:
+            inp = self.activation(linear(inp))
+        # No activation after the last layer
+        logits = self.linears[-1](inp)
         return logits
 
 
 def accuracy(logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
     assert logits.shape[0] == labels.shape[0]
-    # TODO (Copy from your HW1): complete the function to compute the accuracy
-    # Hint: follow the hints in the pdf description, the return should be a tensor of 0s and 1s with the same shape as labels
-    # labels is a tensor of shape (batch_size,)
-    # logits is a tensor of shape (batch_size, num_classes)
-    raise NotImplementedError
+    preds = torch.argmax(logits, dim=1)
+    correct = preds.eq(labels)
+    return correct
 
 
-def evaluate(model: SentimentClassifier, eval_dataloader: DataLoader) -> Tuple[float, float]:
+def evaluate(
+    model: SentimentClassifier, eval_dataloader: DataLoader
+) -> Tuple[float, float]:
     model.eval()
     eval_losses = []
     eval_accs = []
@@ -147,18 +168,20 @@ def evaluate(model: SentimentClassifier, eval_dataloader: DataLoader) -> Tuple[f
     return eval_loss, eval_acc
 
 
-def train(model: SentimentClassifier,
-          optimizer: torch.optim.Optimizer,
-          train_dataloader: DataLoader,
-          dev_dataloader: DataLoader,
-          num_epochs: int,
-          save_path: Union[str, None] = None):
+def train(
+    model: SentimentClassifier,
+    optimizer: torch.optim.Optimizer,
+    train_dataloader: DataLoader,
+    dev_dataloader: DataLoader,
+    num_epochs: int,
+    save_path: Union[str, None] = None,
+):
     # record the training process and model performance for each epoch
     all_epoch_train_losses = []
     all_epoch_train_accs = []
     all_epoch_dev_losses = []
     all_epoch_dev_accs = []
-    best_acc = -1.
+    best_acc = -1.0
     for epoch in range(num_epochs):
         model.train()
         print(f"{'-' * 10} Epoch {epoch}: Training {'-' * 10}")
@@ -191,30 +214,43 @@ def train(model: SentimentClassifier,
             best_acc = dev_acc
             print(f"{'-' * 10} Epoch {epoch}: Best Acc so far: {best_acc} {'-' * 10}")
             if save_path:
-                print(f"{'-' * 10} Epoch {epoch}: Saving model to {save_path} {'-' * 10}")
+                print(
+                    f"{'-' * 10} Epoch {epoch}: Saving model to {save_path} {'-' * 10}"
+                )
                 torch.save(model.state_dict(), save_path)
 
         all_epoch_dev_losses.append(dev_loss)
         all_epoch_dev_accs.append(dev_acc)
 
-    return all_epoch_train_losses, all_epoch_train_accs, all_epoch_dev_losses, all_epoch_dev_accs
+    return (
+        all_epoch_train_losses,
+        all_epoch_train_accs,
+        all_epoch_dev_losses,
+        all_epoch_dev_accs,
+    )
 
 
-def visualize_epochs(epoch_train_losses: List[float], epoch_dev_losses: List[float], save_fig_path: str):
+def visualize_epochs(
+    epoch_train_losses: List[float], epoch_dev_losses: List[float], save_fig_path: str
+):
     plt.clf()
     ax = plt.gca()
     ax.set_ylim([0.4, 0.7])
-    plt.plot(epoch_train_losses, label='train')
-    plt.plot(epoch_dev_losses, label='dev')
+    plt.plot(epoch_train_losses, label="train")
+    plt.plot(epoch_dev_losses, label="dev")
     plt.xticks(np.arange(0, len(epoch_train_losses)).astype(np.int32)),
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
     plt.legend()
     plt.savefig(save_fig_path)
 
 
-def visualize_configs(all_config_epoch_stats: List[List[float]], config_names: List[str], metric_name: str,
-                      save_fig_path: str):
+def visualize_configs(
+    all_config_epoch_stats: List[List[float]],
+    config_names: List[str],
+    metric_name: str,
+    save_fig_path: str,
+):
     plt.clf()
     ax = plt.gca()
     if metric_name == "Accuracy":
@@ -224,17 +260,19 @@ def visualize_configs(all_config_epoch_stats: List[List[float]], config_names: L
     for config_epoch_stats, config_name in zip(all_config_epoch_stats, config_names):
         plt.plot(config_epoch_stats, label=config_name)
     plt.xticks(np.arange(0, len(all_config_epoch_stats[0])).astype(np.int32)),
-    plt.xlabel('Epochs')
+    plt.xlabel("Epochs")
     plt.ylabel(metric_name)
     plt.legend()
     plt.savefig(save_fig_path)
 
 
-def run_mlp(config: easydict.EasyDict,
-            embeddings: gensim.models.keyedvectors.KeyedVectors,
-            dev_dataset: TensorDataset,
-            train_dataset: TensorDataset,
-            test_dataset: TensorDataset):
+def run_mlp(
+    config: easydict.EasyDict,
+    embeddings: gensim.models.keyedvectors.KeyedVectors,
+    dev_dataset: TensorDataset,
+    train_dataset: TensorDataset,
+    test_dataset: TensorDataset,
+):
 
     print(f"{'-' * 10} Create Dataloaders {'-' * 10}")
     train_dataloader = create_dataloader(train_dataset, config.batch_size, shuffle=True)
@@ -242,17 +280,40 @@ def run_mlp(config: easydict.EasyDict,
     test_dataloader = create_dataloader(test_dataset, config.batch_size, shuffle=False)
 
     print(f"{'-' * 10} Load Model {'-' * 10}")
-    model = SentimentClassifier(embeddings.vector_size, config.num_classes, config.hidden_dims, config.activation)
+    model = SentimentClassifier(
+        embeddings.vector_size,
+        config.num_classes,
+        config.hidden_dims,
+        config.activation,
+    )
     # define optimizer that manages the model's parameters and gradient updates
     # we will learn more about optimizers in future lectures and homework
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 
     print(f"{'-' * 10} Start Training {'-' * 10}")
-    all_epoch_train_losses, all_epoch_train_accs, all_epoch_dev_losses, all_epoch_dev_accs = (
-        train(model, optimizer, train_dataloader, dev_dataloader, config.num_epochs, config.save_path))
+    (
+        all_epoch_train_losses,
+        all_epoch_train_accs,
+        all_epoch_dev_losses,
+        all_epoch_dev_accs,
+    ) = train(
+        model,
+        optimizer,
+        train_dataloader,
+        dev_dataloader,
+        config.num_epochs,
+        config.save_path,
+    )
     model.load_state_dict(torch.load(config.save_path))
 
     print(f"{'-' * 10} Evaluate on Test Set {'-' * 10}")
     test_loss, test_acc = evaluate(model, test_dataloader)
 
-    return all_epoch_train_losses, all_epoch_train_accs, all_epoch_dev_losses, all_epoch_dev_accs, test_loss, test_acc
+    return (
+        all_epoch_train_losses,
+        all_epoch_train_accs,
+        all_epoch_dev_losses,
+        all_epoch_dev_accs,
+        test_loss,
+        test_acc,
+    )

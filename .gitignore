@@ -2,3 +2,18 @@
 .DS_Store
 */.ipynb_checkpoints/*
 */__pycache__/*
+hw3/model_lr_0.01.pth
+hw3/model_lr_0.1.pth
+hw3/model_lr_0.02.pth
+hw3/model_lr_0.2.pth
+hw3/model_lr_0.03.pth
+hw3/model_lr_0.05.pth
+hw3/model_lr_0.5.pth
+hw3/model_activation_GeLU.pth
+hw3/model_activation_ReLU.pth
+hw3/model_activation_Sigmoid.pth
+hw3/model_activation_Tanh.pth
+hw3/model_hidden_512 -> 512 -> 512.pth
+hw3/model_hidden_None.pth
+hw3/model_hidden_512 -> 512.pth
+hw3/model_hidden_512.pth
