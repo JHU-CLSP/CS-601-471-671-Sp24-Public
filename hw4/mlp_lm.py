@@ -364,7 +364,7 @@ def sample_from_mlp_lm(config, dev_data):
     model = NPLM(tokenizer.vocab_size, config.embed_dim, config.local_window_size, config.hidden_dim, config.num_blocks,
                  config.dropout_p)
     print(f"{'-' * 10} Load Model Weights {'-' * 10}")
-    model.load_state_dict(torch.load(config.save_path))
+    model.load_state_dict(torch.load(config.save_path, map_location=torch.device('cpu')))
     model.eval()
 
     print(f"{'-' * 10} Evaluate on the Dev Set {'-' * 10}")
