@@ -34,10 +34,13 @@ def get_pairs(word_freq_dict):
     pairs = defaultdict(int)
     for word, freq in word_freq_dict.items():
         # TODO: split the words into tokens based on their white space
+        tokens = list(word.split())
         #  for each neighboring token pair `tokens[i], tokens[i+1]`, add their frequency to `pairs`
+        for i in range(len(tokens) - 1):
+            pairs[tuple(tokens[i:i + 2])] += freq
         # note: in the beginning, tokens == characters; however, later they will grow bigger than characters
         # pairs is a dictionary with tuple of token pairs as keys and their frequency as values
-        raise NotImplementedError
+        # raise NotImplementedError
         # your code ends here
     return pairs
 
@@ -130,15 +133,16 @@ def exract_bpe_subwords(text, steps):
         # hint:
         # - you can use the functions you implemented and provided above
         # - should not be more than 3 lines
-        raise NotImplementedError
+        # raise NotImplementedError
         # extract token pairs and their frequency
+        token_pairs = get_pairs(word_freq_dict)
 
 
         # find the most frequent token pair
-
+        best_pair = get_most_frequent_pair(token_pairs)
 
         # merge the token pair with highest frequency
-
+        word_freq_dict = merge_byte_pairs(best_pair, word_freq_dict)
         # your code ends here
 
         # extract the subwords for visualizing them

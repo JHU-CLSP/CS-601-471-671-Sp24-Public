@@ -12,9 +12,16 @@ from transformers import AutoTokenizer, TopPLogitsWarper
 from collections import Counter, defaultdict  # we will using "Counter" data structure for counting word co-occurences
 from typing import List
 
+# Set random seeds for reproducibility
 torch.manual_seed(42)
 random.seed(42)
 
+# debugging
+torch.autograd.set_detect_anomaly(True)
+
+# Check if MPS is available, and set the default device
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Using device: {device}")
 
 def load_data_mlp_lm():
     print(f"{'-' * 10} Load Dataset {'-' * 10}")
@@ -55,8 +62,11 @@ def preprocess_data(data, local_window_size, splitter, tokenizer):
 
                 # TODO: Select a subset of token_ids from idx -> idx + local_window_size as input and put it to x
                 # Select a subset of token_ids from idx -> idx + local_window_size as input and put it to x: list of context token_ids
+                x = token_ids[idx:idx + local_window_size]
                 # Then select the word immediately after this window as output and put it to y: the target next token_id
-                raise NotImplementedError
+                y = token_ids[idx + local_window_size]
+                # raise NotImplementedError
+
                 # your code ends here
 
                 x_data.append(x)
@@ -83,20 +93,23 @@ class NPLMFirstBlock(nn.Module):
 
     def forward(self, inputs):
         # TODO: implement the forward pass
-        raise NotImplementedError
+        # raise NotImplementedError
         # looking up the word embeddings from self.embeddings()
+        embeds = self.embeddings(inputs)
         # And concatenating them
+        embeds = embeds.view(-1, self.local_window_size * self.embed_dim)
         # Note this is done for a batch of instances.
-
+        # apply linear transformation and tanh activation
+        outputs = self.linear(embeds)
 
         # Transform embeddings with a linear layer and tanh activation
-
+        outputs = F.tanh(outputs)        
 
         # apply layer normalization
-
+        outputs = self.layer_norm(outputs)
 
         # apply dropout
-
+        final_embeds = self.dropout(outputs)
         # your code ends here
 
         return final_embeds
@@ -113,18 +126,21 @@ class NPLMBlock(nn.Module):
 
     def forward(self, inputs):
         # TODO: implement the forward pass
-        raise NotImplementedError
+        # raise NotImplementedError
         # apply linear transformation and tanh activation
+        final_inputs = self.linear(inputs)
 
+        # Transform embeddings with a linear layer and tanh activation
+        final_inputs = F.tanh(final_inputs)
 
         # add residual connection
-
+        final_inputs = final_inputs + inputs
 
         # apply layer normalization
-
+        final_inputs = self.layer_norm(final_inputs)
 
         # apply dropout
-
+        final_inputs = self.dropout(final_inputs)
         # your code ends here
 
         return final_inputs
@@ -138,11 +154,11 @@ class NPLMFinalBlock(nn.Module):
 
     def forward(self, inputs):
         # TODO: implement the forward pass
-        raise NotImplementedError
+        # raise NotImplementedError
         # apply linear transformation
-
+        log_probs = self.linear(inputs)
         # apply log_softmax to get log-probabilities (logits)
-
+        log_probs = F.log_softmax(log_probs, dim=-1)
         # your code ends here
 
         return log_probs
@@ -154,11 +170,11 @@ class NPLM(nn.Module):
 
         self.first_layer = NPLMFirstBlock(vocab_size, embed_dim, local_window_size, hidden_dim, dropout_p)
 
-        self.intermediate_layers = nn.ModuleList()
+        self.intermediate_layers = nn.ModuleList([NPLMBlock(hidden_dim, dropout_p) for _ in range(num_blocks)])
 
         # TODO: create num_blocks of NPLMBlock as intermediate layers
         # append them to self.intermediate_layers
-        raise NotImplementedError
+        # raise NotImplementedError
 
         # your code ends here
 
@@ -166,14 +182,17 @@ class NPLM(nn.Module):
 
     def forward(self, inputs):
         # TODO: implement the forward pass
-        raise NotImplementedError
+        # raise NotImplementedError
         # input layer
-
+        embeds = self.first_layer(inputs)
         # multiple middle layers
+        for layer in self.intermediate_layers:
+            embeds = layer(embeds)
+            embeds = F.relu(embeds)
         # remember to apply the ReLU activation function after each layer
 
         # output layer
-
+        log_probs = self.final_layer(embeds)
         # your code ends here
 
         return log_probs
@@ -181,6 +200,7 @@ class NPLM(nn.Module):
 
 def test_model_forward(model, sample, local_window_size, tokenizer):
     inp, target = sample
+    inp, target = inp.to(device), target.to(device)
 
     log_probs = model(inp)
 
@@ -209,6 +229,7 @@ def train(model, train_dataloader, dev_dataloader, criterion, optimizer, schedul
         print(f"{'-' * 10} Epoch {epoch}: Training {'-' * 10}")
         for idx, batch in tqdm(enumerate(train_dataloader)):
             inp, target = batch
+            inp, target = inp.to(device), target.to(device)
 
             # get log probabilities over next words
             log_probs = model(inp)
@@ -219,7 +240,8 @@ def train(model, train_dataloader, dev_dataloader, criterion, optimizer, schedul
             # TODO extract perplexity
             # remember the connection between perplexity and cross-entropy loss
             # name the perplexity result as 'ppl'
-            raise NotImplementedError
+            ppl = torch.exp(loss)
+            # raise NotImplementedError
             # your code ends here
 
             # backward pass and update gradient
@@ -262,13 +284,15 @@ def evaluate(model, eval_dataloader, criterion):
     with torch.no_grad():  # turn off gradient calculation because we want to evaluate the model
         for idx, batch in tqdm(enumerate(eval_dataloader)):
             inp, target = batch
+            inp, target = inp.to(device), target.to(device)
             log_probs = model(inp)
             loss += criterion(log_probs, target).item()
             count += 1
     avg_loss = loss / count
     # TODO: compute perplexity
     # name the perplexity result as 'avg_ppl'
-    raise NotImplementedError
+    # raise NotImplementedError
+    avg_ppl = torch.exp(torch.tensor(avg_loss)).item()
     # your code ends here
     return avg_loss, avg_ppl
 
@@ -281,7 +305,7 @@ def generate_text(prompt, model, tokenizer, local_window_size, top_p, max_len=30
     count = 0
     while count < max_len:
         # select the tokens in the window
-        new_input = torch.tensor(tokenized_prompt_ids[-local_window_size:])
+        new_input = torch.tensor(tokenized_prompt_ids[-local_window_size:]).to(device)
 
         # compute model output
         output = model(new_input)
@@ -337,7 +361,7 @@ def run_mlp_lm(config, train_data, dev_data):
     # create model
     print(f"{'-' * 10} Create Model {'-' * 10}")
     model = NPLM(tokenizer.vocab_size, config.embed_dim, config.local_window_size, config.hidden_dim, config.num_blocks,
-                 config.dropout_p)
+                 config.dropout_p).to(device)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f"{'-' * 10} # of parameters: {params} {'-' * 10}")
@@ -362,9 +386,9 @@ def run_mlp_lm(config, train_data, dev_data):
 def sample_from_mlp_lm(config, dev_data):
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
     model = NPLM(tokenizer.vocab_size, config.embed_dim, config.local_window_size, config.hidden_dim, config.num_blocks,
-                 config.dropout_p)
+                 config.dropout_p).to(device)
     print(f"{'-' * 10} Load Model Weights {'-' * 10}")
-    model.load_state_dict(torch.load(config.save_path, map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(config.save_path, map_location=torch.device('mps')))
     model.eval()
 
     print(f"{'-' * 10} Evaluate on the Dev Set {'-' * 10}")
