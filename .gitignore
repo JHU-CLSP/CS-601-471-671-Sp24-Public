@@ -17,3 +17,5 @@ hw3/model_hidden_512 -> 512 -> 512.pth
 hw3/model_hidden_None.pth
 hw3/model_hidden_512 -> 512.pth
 hw3/model_hidden_512.pth
+hw4/model.pth
+hw4/pretrained_fixed_window_lm.dat
