@@ -40,21 +40,23 @@ class CausalSelfAttention(nn.Module):
         #   The matrix should has 1s in the lower left triangular part (including the diagonal) and 0s in the upper right.
         #   Name the matrix `causal_mask`
         # Hint: you can check torch.tril for creating the matrix with the help of torch.ones.
-        raise NotImplementedError
+        
+        
+        causal_mask = torch.tril(torch.ones(config.block_size, config.block_size))
         # your code ends here
 
         # expand the mask for the batch and head dimensions
-        casual_mask = casual_mask.view(1, 1, config.block_size, config.block_size)
+        causal_mask = causal_mask.view(1, 1, config.block_size, config.block_size)
         # register the mask as a buffer so it's not updated as a model parameter
         # but can still be used in the forward pass & saved to the state_dict
-        self.register_buffer("causal_mask", casual_mask)
+        self.register_buffer("causal_mask", causal_mask)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
-        # TODO: implement the forward pass of the casual self-attention layer.
+        # TODO: implement the forward pass of the causal self-attention layer.
         # project the input to key, query, value vectors
         # each of shape (B, T, n_embd)
         q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
@@ -65,9 +67,10 @@ class CausalSelfAttention(nn.Module):
         # - splitting the n_embd dimension into [n_head, n_embd / n_head]
         # - transpose the result so that move n_head forward to be the batch dimension
         # we provide the implementation for the key projections as an example
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, n_head, T, n_embd / n_head)
+        # k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, n_head, T, n_embd / n_head)
         # similarly, implement the query and value projections
-        raise NotImplementedError
+    
+
 
         # causal self-attention; Self-attend: (B, n_head, T, n_embd / n_head) x (B, n_head, n_embd / n_head, T) -> (B, n_head, T, T)
         # calculate the scaled dot-product attention with causal mask, name the attention matrix as `att`
@@ -89,12 +92,23 @@ class CausalSelfAttention(nn.Module):
         # step 5: multiply the attention matrix with value vectors
 
         # your code ends here
+        
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 
-        y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+        # Scaled dot-product attention with causal masking
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) * (1.0 / math.sqrt(self.n_embd / self.n_head))
+        attn_weights = attn_weights.masked_fill(self.causal_mask[:, :, :T, :T] == 0, float('-inf'))
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_weights = self.attn_dropout(attn_weights)
 
-        # output projection
+        y = torch.matmul(attn_weights, v)
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+
         y = self.resid_dropout(self.c_proj(y))
         return y
+
 
 class Block(nn.Module):
     """ an unassuming Transformer block """

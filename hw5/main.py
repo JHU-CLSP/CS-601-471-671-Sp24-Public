@@ -79,9 +79,9 @@ if __name__ == '__main__':
 
     # TODO: run cpu & gpu comparison
     # uncomment the following line to run
-    # cpu_gpu_comparison(train_d, dev_d, max_iter=50)
+    cpu_gpu_comparison(train_d, dev_d, max_iter=50)
 
     # TODO: run the full training on gpu
     # uncomment the following line to run
-    # gpu_full_run(train_d, dev_d, max_iter=20000)
+    gpu_full_run(train_d, dev_d, max_iter=20000)
 
